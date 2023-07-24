@@ -1,21 +1,24 @@
 import io
 import sys
 import xml.etree.ElementTree as ET
+from typing import Tuple
 
 import cairosvg
 import numpy as np
-from PIL import Image
+from PIL import Image as PILImageMod
+from pytamaro.graphic import Graphic
+from PIL.Image import Image as PILImage
 from pytamaro.io import graphic_to_pillow_image
 
 
-def validate_file_contents(file1, file2):
+def validate_file_contents(file1: str, file2: str) -> bool:
     with open(file1, 'rb') as f1, open(file2, 'rb') as f2:
         contents1 = f1.read()
         contents2 = f2.read()
     return contents1 == contents2
 
 
-def compare_pillow_images(pic1, pic2):
+def compare_pillow_images(pic1: PILImage, pic2: PILImage) -> bool:
     """
 
     :param pic1: the given Pillow image
@@ -27,33 +30,35 @@ def compare_pillow_images(pic1, pic2):
     pic1_arr = np.array(pic1)
     pic2_arr = np.array(pic2)
 
-    height = len(pic1_arr)
-    width = len(pic1_arr[0])
+    pic1_height = len(pic1_arr)
+    pic1_width = len(pic1_arr[0])
 
-    bit_map = np.zeros((height, width, 4), dtype="uint8")
+    pic2_height = len(pic2_arr)
+    pic2_width = len(pic2_arr[0])
+
+    if pic1_height != pic2_height or pic1_width != pic2_width:
+        sys.exit("Images are incomparable: Different images size")
+    bit_map = np.zeros((pic1_height, pic1_width, 4), dtype="uint8")
     count = 0
 
-    if (type(pic1_arr[0][0]) != type(pic2_arr[0][0])) or len(pic1_arr[0][0]) != len(pic2_arr[0][0]):
-        sys.exit("Different pixel representation")
-
-    for i in range(height):
-        for j in range(width):
+    for i in range(pic1_height):
+        for j in range(pic1_width):
             if (pic1_arr[i][j] == pic2_arr[i][j]).all():
                 bit_map[i][j] = np.array([255, 255, 255, 255], dtype="uint8")
             else:
                 bit_map[i][j] = np.array([255, 0, 0, 255], dtype="uint8")
                 count += 1
-    error = count / (width * height)
+    error = count / (pic1_width * pic1_height)
     if error != 0:
         print(f"The difference between two pictures is {error * 100:.3f}%")
-        Image.fromarray(bit_map).show()
+        PILImageMod.fromarray(bit_map).show()
         return False
     else:
         print("Two images are same")
         return True
 
 
-def compare_graphic(graphic1, graphic2):
+def compare_graphic(graphic1: Graphic, graphic2: Graphic) -> bool:
     """
 
     :param graphic1: the given Graphic
@@ -70,7 +75,7 @@ def compare_graphic(graphic1, graphic2):
     return result
 
 
-def read_svg(file1, file2):
+def read_svg(file1: str, file2: str) -> Tuple[PILImage, PILImage]:
     """
     :param file1: the given svg file
     :param file2: the authenticated svg file
@@ -103,20 +108,21 @@ def read_svg(file1, file2):
     pic1_bytes = cairosvg.svg2png(url=file1, output_width=width, output_height=height)
     pic2_bytes = cairosvg.svg2png(url=file2, output_width=width, output_height=height)
 
-    pic1_image = Image.open(io.BytesIO(pic1_bytes))
-    pic2_image = Image.open(io.BytesIO(pic2_bytes))
+    pic1_image = PILImageMod.open(io.BytesIO(pic1_bytes))
+    pic2_image = PILImageMod.open(io.BytesIO(pic2_bytes))
 
     return pic2_image, pic1_image
 
 
-def read_png(file1, file2):
+def read_png(file1: str, file2: str) -> Tuple[PILImage, PILImage]:
     """
+
     :param file1: the given png file
     :param file2: the authenticated png file
     :return: PIL Image version file1 and PIL Image version file2
 
     """
-    pic1, pic2 = Image.open(file1), Image.open(file2)
+    pic1, pic2 = PILImageMod.open(file1), PILImageMod.open(file2)
 
     if pic1.size != pic2.size:
         sys.exit("Images are incomparable: different size")
@@ -124,7 +130,7 @@ def read_png(file1, file2):
     return pic1, pic2
 
 
-def compare_images(file1, file2):
+def compare_images(file1: str, file2: str) -> bool:
     """
     :param file1: the given image file
     :param file2: the authenticated image file
@@ -147,19 +153,19 @@ def compare_images(file1, file2):
     return result
 
 
-def compare_animation(file1, file2):
+def compare_animation(file1: str, file2: str) -> bool:
     """
-        :param file1: the given gif file
-        :param file2: the authenticated gif file
-        :return: True if two gif animation are exactly same, otherwise return False and display
-        the sequence numbers of different frames
+    :param file1: the given gif file
+    :param file2: the authenticated gif file
+    :return: True if two gif animation are exactly same, otherwise return False and display
+    the sequence numbers of different frames
 
-        """
+    """
     gif1 = None
     gif2 = None
 
     if file1.endswith(".gif") and file2.endswith(".gif"):
-        gif1, gif2 = Image.open(file1), Image.open(file2)
+        gif1, gif2 = PILImageMod.open(file1), PILImageMod.open(file2)
     else:
         sys.exit("The type of files are not supported")
 
@@ -183,7 +189,8 @@ def compare_animation(file1, file2):
         for j in range(width):
             for k in range(height):
                 if not (gif1_arr[j][k] == gif2_arr[j][k]).all():
-                    result.append(i)
+                    if len(result) == 0 or result[-1] != i:
+                        result.append(i)
 
     if result:
         print(result)
@@ -191,3 +198,5 @@ def compare_animation(file1, file2):
     else:
         print("Two animations are same")
         return True
+
+
