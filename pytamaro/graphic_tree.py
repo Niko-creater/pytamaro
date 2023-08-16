@@ -32,6 +32,8 @@ class ComposeNode(OperationNode):
     def __init__(self, foreground_graphic: GraphicTree, background_graphic: GraphicTree):
         self.foreground_graphic = foreground_graphic
         self.background_graphic = background_graphic
+        self.left_node = foreground_graphic
+        self.right_node = background_graphic
         super().__init__("compose")
 
 
@@ -39,6 +41,8 @@ class RotateNode(OperationNode):
     def __init__(self, angle: float, graphic: GraphicTree):
         self.angle = -angle
         self.graphic = graphic
+        self.left_node = -angle
+        self.right_node = graphic
         super().__init__("rotate")
 
 
@@ -47,6 +51,7 @@ class PrimitiveNode(GraphicTree):
         self.root = operand
         self.data = data
         self.col = col
+
 
 
 class RectangleNode(PrimitiveNode):
@@ -67,6 +72,8 @@ class TriangleNode(PrimitiveNode):
         self.angle = angle
         self.color = color
         data = "s1:" + str(side1) + ",s2:" + str(side2) + ",a:" + str(angle)
+        self.left_node = data
+        self.right_node = color
         super().__init__("triangle", data, color)
 
 
@@ -76,6 +83,8 @@ class EllipseNode(PrimitiveNode):
         self.height = height
         self.color = color
         data = "w:" + str(width) + ",h:" + str(height)
+        self.left_node = data
+        self.right_node = color
         super().__init__("ellipse", data, color)
 
 
@@ -85,6 +94,8 @@ class CircularSectorNode(PrimitiveNode):
         self.color = color
         self.angle = angle
         data = "r:" + str(radius) + ",a:" + str(angle)
+        self.left_node = data
+        self.right_node = color
         super().__init__("circularSector", data, color)
 
 
@@ -95,12 +106,16 @@ class TextNode(PrimitiveNode):
         self.points: points
         self.color = color
         data = "c:" + content + ",f:" + font + ",p:" + str(points)
+        self.left_node = data
+        self.right_node = color
         super().__init__("text", data, color)
 
 
 class EmptyNode(PrimitiveNode):
     def __init__(self):
         super().__init__("empty", " ", " ")
+        self.left_node = "000"
+        self.right_node = "none"
 
 
 class Canvas:
@@ -138,23 +153,8 @@ class Canvas:
 
 def print_binary_tree_r(t, x: int, y: int, canvas: Canvas):
     max_y = y
-    if isinstance(t, ComposeNode):
-        x, max_y, lx, rx = print_binary_tree_r(t.foreground_graphic, x, y + 2, canvas)
-        x = x + 1
-        for i in range(rx, x):
-            canvas.put_char(i, y + 1, '/')
-    elif isinstance(t, PinNode):
-        x, max_y, lx, rx = print_binary_tree_r(t.point, x, y + 2, canvas)
-        x = x + 1
-        for i in range(rx, x):
-            canvas.put_char(i, y + 1, '/')
-    elif isinstance(t, RotateNode):
-        x, max_y, lx, rx = print_binary_tree_r(str(t.angle), x, y + 2, canvas)
-        x = x + 1
-        for i in range(rx, x):
-            canvas.put_char(i, y + 1, '/')
-    elif isinstance(t, PrimitiveNode):
-        x, max_y, lx, rx = print_binary_tree_r(t.data, x, y + 2, canvas)
+    if isinstance(t, GraphicTree):
+        x, max_y, lx, rx = print_binary_tree_r(t.left_node, x, y + 2, canvas)
         x = x + 1
         for i in range(rx, x):
             canvas.put_char(i, y + 1, '/')
@@ -170,28 +170,10 @@ def print_binary_tree_r(t, x: int, y: int, canvas: Canvas):
             x = x + 1
     middle_r = x
 
-    if isinstance(t, PinNode) or isinstance(t, RotateNode):
+    if isinstance(t, GraphicTree):
         canvas.put_char(x, y + 1, '\\')
         x = x + 1
-        x0, max_y2, lx, rx = print_binary_tree_r(t.graphic, x, y + 2, canvas)
-        if max_y2 > max_y:
-            max_y = max_y2
-        for i in range(x, lx):
-            canvas.put_char(i, y + 1, '\\')
-        x = x0
-    elif isinstance(t, ComposeNode):
-        canvas.put_char(x, y + 1, '\\')
-        x = x + 1
-        x0, max_y2, lx, rx = print_binary_tree_r(t.background_graphic, x, y + 2, canvas)
-        if max_y2 > max_y:
-            max_y = max_y2
-        for i in range(x, lx):
-            canvas.put_char(i, y + 1, '\\')
-        x = x0
-    elif isinstance(t, PrimitiveNode):
-        canvas.put_char(x, y + 1, '\\')
-        x = x + 1
-        x0, max_y2, lx, rx = print_binary_tree_r(t.col, x, y + 2, canvas)
+        x0, max_y2, lx, rx = print_binary_tree_r(t.right_node, x, y + 2, canvas)
         if max_y2 > max_y:
             max_y = max_y2
         for i in range(x, lx):
