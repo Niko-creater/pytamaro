@@ -10,6 +10,8 @@ from skia import (Canvas, Font, Matrix, Paint, Path, Point, Rect, Size,
 
 from pytamaro.color import Color
 from pytamaro.point import Point as PyTamaroPoint
+from pytamaro.graphic_tree import *
+from pytamaro.point_names import get_point_name
 
 # pylint: disable=super-init-not-called
 
@@ -27,6 +29,7 @@ class Graphic(ABC):
     """
     pin_position: Point
     path: Path
+    graphic_tree: GraphicTree
 
     def set_pin_position(self, x: float, y: float):  # pylint: disable=invalid-name
         """
@@ -86,11 +89,12 @@ class Primitive(Graphic):
     Represents a primitive graphic, which has a path and a uniform color.
     Geometric shapes and text are primitive graphics.
     """
-    def __init__(self, path: Path, color: Color):
+    def __init__(self, path: Path, color: Color, graphic_tree: GraphicTree):
         self.path = path
         self.paint = Paint(color.color)
         bounds = self.path.computeTightBounds()
         self.set_pin_position(bounds.width() / 2, bounds.height() / 2)
+        self.graphic_tree = graphic_tree
 
     def draw(self, canvas: Canvas):
         canvas.drawPath(self.path, self.paint)
@@ -104,7 +108,7 @@ class Empty(Graphic):
     An empty graphic.
     """
     def __init__(self):
-        super().__init__(Point(0, 0), Path())
+        super().__init__(Point(0, 0), Path(), EmptyNode())
 
     def draw(self, canvas: Canvas):
         pass
@@ -116,7 +120,7 @@ class Rectangle(Primitive):
     """
     def __init__(self, width: float, height: float, color: Color):
         path = Path().addRect(Rect.MakeWH(width, height))
-        super().__init__(path, color)
+        super().__init__(path, color, RectangleNode(width, height, color.as_string()))
 
 
 class Ellipse(Primitive):
@@ -125,7 +129,7 @@ class Ellipse(Primitive):
     """
     def __init__(self, width: float, height: float, color: Color):
         path = Path().addOval(Rect.MakeWH(width, height))
-        super().__init__(path, color)
+        super().__init__(path, color, EllipseNode(width, height, color.as_string()))
 
 
 class CircularSector(Primitive):
@@ -142,7 +146,7 @@ class CircularSector(Primitive):
             path.moveTo(radius, radius)
             path.arcTo(Rect.MakeWH(diameter, diameter), 0, -angle, False)
             path.close()
-        super().__init__(path, color)
+        super().__init__(path, color, CircularSectorNode(radius, angle, color.as_string()))
         self.set_pin_position(radius, radius)
 
 
@@ -157,7 +161,7 @@ class Triangle(Primitive):
     def __init__(self, side1: float, side2: float, angle: float, color: Color):
         third_point = Matrix.RotateDeg(-angle).mapXY(side2, 0)
         path = Path.Polygon([Point(0, 0), Point(side1, 0), third_point], isClosed=True)
-        super().__init__(path, color)
+        super().__init__(path, color, TriangleNode(side1, side2, angle, color.as_string()))
         # The centroid is the average of the three vertices
         centroid = Point((side1 + third_point.x()) / 3, third_point.y() / 3)
         self.pin_position = centroid
@@ -181,7 +185,7 @@ class Text(Primitive):
                 path.offset(x_offset, 0)
                 text_path.addPath(path)
 
-        super().__init__(text_path, color)
+        super().__init__(text_path, color, TextNode(text, font_name, size, color.as_string()))
         # Set the pinning position at baseline level (0) on the very left (which
         # might be slightly after 0, given that the bounding box is computed
         # very tightly around the glyphs, cutting some space before the first
@@ -203,6 +207,7 @@ class Compose(Graphic):
         self.path = Path(self.background.path)
         self.path.addPath(self.foreground.path,
                           bg_pin.x() - fg_pin.x(), bg_pin.y() - fg_pin.y())
+        self.graphic_tree = ComposeNode(foreground.graphic_tree, background.graphic_tree)
 
     def draw(self, canvas: Canvas):
         canvas.save()
@@ -233,6 +238,8 @@ class Pin(Graphic):
         self.set_pin_position(
             h_mapping[pinning_point.x], v_mapping[pinning_point.y])
         self.path = Path(self.graphic.path)
+        point_str = get_point_name(pinning_point)
+        self.graphic_tree = PinNode(point_str, graphic.graphic_tree)
 
     def draw(self, canvas: Canvas):
         self.graphic.draw(canvas)
@@ -248,6 +255,7 @@ class Rotate(Graphic):
         self.path = Path()
         self.graphic.path.transform(self.rot_matrix, self.path)  # updates self.path
         self.pin_position = graphic.pin_position
+        self.graphic_tree = RotateNode(deg, graphic.graphic_tree)
 
     def draw(self, canvas: Canvas):
         canvas.save()
